@@ -342,6 +342,7 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
     const hourScrollRef = useRef<ScrollView>(null);
     const minuteScrollRef = useRef<ScrollView>(null);
     
+    // Initialize internal state when modal becomes visible
     useEffect(() => {
       if (showTimePicker) {
         const [hour, minute] = scheduledTime.split(':');
@@ -349,6 +350,7 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
         setDisplayMinute(minute);
         setInternalAmPm(selectedAmPm);
         
+        // Position scroll wheels after state is set
         setTimeout(() => {
           const hours = generateTimeOptions().hours;
           const minutes = generateTimeOptions().minutes;
@@ -385,6 +387,28 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
       }
       
       return { hours, minutes };
+    };
+    
+    const scrollToTimeValue = (type: 'hour' | 'minute', value: string) => {
+      const itemHeight = 48;
+      const { hours, minutes } = generateTimeOptions();
+      const values = type === 'hour' ? hours : minutes;
+      const index = values.findIndex(v => v === value);
+      
+      if (index !== -1) {
+        if (type === 'hour' && hourScrollRef.current) {
+          hourScrollRef.current.scrollTo({
+            y: index * itemHeight,
+            animated: true
+          });
+        }
+        if (type === 'minute' && minuteScrollRef.current) {
+          minuteScrollRef.current.scrollTo({
+            y: index * itemHeight,
+            animated: true
+          });
+        }
+      }
     };
     
     const handleScrollEnd = (event: any, type: 'hour' | 'minute') => {
@@ -486,6 +510,7 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
             </View>
             
             <View style={styles.timePickerContent}>
+              {/* AM/PM Selector - Top */}
               <View style={styles.ampmContainer}>
                 <TouchableOpacity
                   style={[
@@ -496,7 +521,9 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                       borderColor: internalAmPm === 'AM' ? theme.secondary : theme.border
                     }
                   ]}
-                  onPress={() => setInternalAmPm('AM')}
+                  onPress={() => {
+                    setInternalAmPm('AM');
+                  }}
                 >
                   <Text style={[
                     styles.ampmText,
@@ -514,7 +541,9 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                       borderColor: internalAmPm === 'PM' ? theme.secondary : theme.border
                     }
                   ]}
-                  onPress={() => setInternalAmPm('PM')}
+                  onPress={() => {
+                    setInternalAmPm('PM');
+                  }}
                 >
                   <Text style={[
                     styles.ampmText,
@@ -525,9 +554,16 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                 </TouchableOpacity>
               </View>
 
+              {/* Current Time Display - Large and Tappable */}
               <View style={styles.timeDisplay}>
                 <TouchableOpacity
-                  style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                  style={[
+                    styles.timeBox, 
+                    { 
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.border
+                    }
+                  ]}
                   onPress={() => handleTimeBoxTap('hour')}
                 >
                   <Text style={[styles.timeBoxText, { color: theme.text }]}>
@@ -538,7 +574,13 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                 <Text style={[styles.timeSeparator, { color: theme.text }]}>:</Text>
                 
                 <TouchableOpacity
-                  style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                  style={[
+                    styles.timeBox, 
+                    { 
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.border
+                    }
+                  ]}
                   onPress={() => handleTimeBoxTap('minute')}
                 >
                   <Text style={[styles.timeBoxText, { color: theme.text }]}>
@@ -547,7 +589,11 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                 </TouchableOpacity>
               </View>
 
+              {/* Time Scrollers */}
+              <View style={styles.timeScrollers}>
+              {/* Scroll Wheels */}
               <View style={styles.scrollWheelsContainer}>
+                {/* Hours Column */}
                 <View style={styles.wheelColumn}>
                   <Text style={[styles.wheelLabel, { color: theme.primary }]}>Hour</Text>
                   <ScrollView
@@ -563,7 +609,10 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                       <TouchableOpacity
                         key={`hour-${index}`}
                         style={styles.timeOption}
-                        onPress={() => setDisplayHour(hour)}
+                        onPress={() => {
+                          setDisplayHour(hour);
+                          scrollToTimeValue('hour', hour);
+                        }}
                       >
                         <Text style={[
                           styles.timeOptionText,
@@ -576,6 +625,8 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                   </ScrollView>
                 </View>
 
+
+                {/* Minutes Column */}
                 <View style={styles.wheelColumn}>
                   <Text style={[styles.wheelLabel, { color: theme.primary }]}>Minute</Text>
                   <ScrollView
@@ -591,7 +642,10 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                       <TouchableOpacity
                         key={`minute-${index}`}
                         style={styles.timeOption}
-                        onPress={() => setDisplayMinute(minute)}
+                        onPress={() => {
+                          setDisplayMinute(minute);
+                          scrollToTimeValue('minute', minute);
+                        }}
                       >
                         <Text style={[
                           styles.timeOptionText,
@@ -604,14 +658,17 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
                   </ScrollView>
                 </View>
               </View>
+              </View>
             </View>
 
             <View style={[styles.timePickerFooter, { borderTopColor: theme.border }]}>
               <TouchableOpacity
                 style={[styles.timePickerButton, { backgroundColor: theme.secondary }]}
-                onPress={() => handleTimeSelect(displayHour, displayMinute, internalAmPm)}
+                onPress={() => {
+                  handleTimeSelect(displayHour, displayMinute, internalAmPm);
+                }}
               >
-                <Text style={styles.timePickerButtonText}>Done</Text>
+                <Text style={[styles.timePickerButtonText, { color: '#FFFFFF' }]}>Done</Text>
               </TouchableOpacity>
             </View>
           </View>
