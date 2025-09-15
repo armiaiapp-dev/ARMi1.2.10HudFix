@@ -31,11 +31,11 @@ export default function TabLayout() {
           },
         }}>
         <Tabs.Screen
-          name="add"
+          name="index"
           options={{
-            title: 'ARMi',
+            title: `My ${getRosterLabel()}`,
             tabBarIcon: ({ size, color }) => (
-              <MessageSquarePlus size={size} color={color} />
+              <Users size={size} color={color} />
             ),
           }}
         />
@@ -49,11 +49,11 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="index"
+          name="add"
           options={{
-            title: `My ${getRosterLabel()}`,
+            title: 'ARMi',
             tabBarIcon: ({ size, color }) => (
-              <Users size={size} color={color} />
+              <MessageSquarePlus size={size} color={color} />
             ),
           }}
         />
