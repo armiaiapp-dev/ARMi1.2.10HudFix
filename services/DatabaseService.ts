@@ -777,6 +777,20 @@ class DatabaseServiceClass {
     `, [now, textId]);
   }
 
+  async snoozeScheduledText(textId: number, newDate: string) {
+    await this.ensureReady();
+    
+    if (this.isWebFallback) {
+      console.log('Web fallback: Snooze scheduled text operation simulated');
+      return;
+    }
+    
+    const now = new Date().toISOString();
+    await this.db!.runAsync(`
+      UPDATE scheduled_texts SET scheduledFor = ?, updatedAt = ? WHERE id = ?
+    `, [newDate, now, textId]);
+  }
+
   async deleteScheduledText(textId: number) {
     await this.ensureReady();
     

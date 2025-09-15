@@ -122,6 +122,65 @@ export default function SchedulerScreen() {
     }
   };
 
+  const handleTextSnooze = async (textId: number) => {
+    try {
+      // Get the scheduled text to cancel its notification
+      const scheduledText = scheduledTexts.find(text => text.id === textId);
+      if (scheduledText?.notificationId) {
+        await cancelById(scheduledText.notificationId);
+      }
+      
+      // Calculate new date (24 hours from now)
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + 1);
+      newDate.setHours(9, 0, 0, 0); // 9 AM tomorrow
+      
+      // Update the scheduled text in database
+      await DatabaseService.snoozeScheduledText(textId, newDate.toISOString());
+      
+      // Get the updated scheduled text and schedule a new notification
+      const updatedText = await DatabaseService.getScheduledTextById(textId);
+      if (updatedText) {
+        const { scheduleScheduledText } = await import('@/services/Scheduler');
+        const result = await scheduleScheduledText({
+          messageId: updatedText.id.toString(),
+          phoneNumber: updatedText.phoneNumber,
+          message: updatedText.message,
+          datePick: new Date(updatedText.scheduledFor),
+          timePick: new Date(updatedText.scheduledFor),
+        });
+        
+        // Update the notification ID in the database
+        if (result.id) {
+          await DatabaseService.updateScheduledTextNotificationId(textId, result.id);
+        }
+      }
+      
+      // Refresh the list
+      await loadScheduledTexts();
+    } catch (error) {
+      console.error('Error snoozing scheduled text:', error);
+    }
+  };
+
+  const handleMarkTextAsSent = async (textId: number) => {
+    try {
+      // Get the scheduled text to cancel its notification
+      const scheduledText = scheduledTexts.find(text => text.id === textId);
+      if (scheduledText?.notificationId) {
+        await cancelById(scheduledText.notificationId);
+      }
+      
+      // Mark the scheduled text as sent in database
+      await DatabaseService.markScheduledTextAsSent(textId);
+      
+      // Refresh the list
+      await loadScheduledTexts();
+    } catch (error) {
+      console.error('Error marking scheduled text as sent:', error);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
@@ -169,6 +228,8 @@ export default function SchedulerScreen() {
               scheduledText={item}
               onEdit={handleTextEdit}
               onDelete={handleTextDelete}
+              onSnooze={handleTextSnooze}
+              onMarkAsSent={handleMarkTextAsSent}
               theme={theme}
             />
           )}

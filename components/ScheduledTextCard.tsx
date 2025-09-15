@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, Alert } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import { MessageSquare, User, Calendar, Clock, Trash2, Phone } from 'lucide-react-native';
+import { MessageSquare, User, Calendar, Clock, Trash2, Phone, Check } from 'lucide-react-native';
 import { CreditCard as Edit } from 'lucide-react-native';
 import { format, parseISO, isPast, isToday, isTomorrow, isThisWeek, formatDistanceToNow } from 'date-fns';
 
@@ -21,10 +21,12 @@ interface ScheduledTextCardProps {
   scheduledText: ScheduledText;
   onEdit: (scheduledText: ScheduledText) => void;
   onDelete: (textId: number) => void;
+  onSnooze: (textId: number) => void;
+  onMarkAsSent: (textId: number) => void;
   theme: any;
 }
 
-export function ScheduledTextCard({ scheduledText, onEdit, onDelete, theme }: ScheduledTextCardProps) {
+export function ScheduledTextCard({ scheduledText, onEdit, onDelete, onSnooze, onMarkAsSent, theme }: ScheduledTextCardProps) {
   const translateX = new Animated.Value(0);
   const [isSwipeActive, setIsSwipeActive] = React.useState(false);
 
@@ -277,6 +279,32 @@ export function ScheduledTextCard({ scheduledText, onEdit, onDelete, theme }: Sc
                   <Edit size={16} color={theme.text} />
                   <Text style={[styles.editButtonText, { color: theme.text }]}>Edit</Text>
                 </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.snoozeButton, { backgroundColor: theme.accent, borderColor: theme.border }]}
+                  onPress={() => onSnooze(scheduledText.id)}
+                >
+                  <Clock size={16} color={theme.text} />
+                  <Text style={[styles.snoozeButtonText, { color: theme.text }]}>Snooze</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.sentButton, { backgroundColor: '#059669' }]}
+                  onPress={() => onMarkAsSent(scheduledText.id)}
+                >
+                  <Check size={16} color="#FFFFFF" />
+                  <Text style={styles.sentButtonText}>Sent</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Sent indicator */}
+            {scheduledText.sent && (
+              <View style={styles.sentIndicator}>
+                <Check size={16} color="#059669" />
+                <Text style={[styles.sentText, { color: theme.primary }]}>
+                  Sent
+                </Text>
               </View>
             )}
           </View>
@@ -433,6 +461,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   editButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  snoozeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  snoozeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  sentButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  sentButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  sentIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  sentText: {
     fontSize: 15,
     fontWeight: '600',
     marginLeft: 6,

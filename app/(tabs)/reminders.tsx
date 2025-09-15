@@ -180,6 +180,15 @@ export default function RemindersScreen() {
           <Text style={[styles.emptyStateDescription, { color: colors.textSecondary }]}>
             Loading reminders...
           </Text>
+          {selectedFilter === 'all' && (
+            <TouchableOpacity
+              style={[styles.emptyActionButton, { backgroundColor: colors.secondary }]}
+              onPress={() => setAddReminderModalVisible(true)}
+            >
+              <Plus size={20} color="#FFFFFF" />
+              <Text style={styles.emptyActionButtonText}>Add Your First Reminder</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
@@ -319,5 +328,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  emptyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    marginTop: 32,
+  },
+  emptyActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
