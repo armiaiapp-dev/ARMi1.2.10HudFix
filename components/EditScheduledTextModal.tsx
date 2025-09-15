@@ -404,6 +404,69 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
       }
     };
     
+    const handleTimeBoxTap = (type: 'hour' | 'minute') => {
+      const currentValue = type === 'hour' ? displayHour : displayMinute;
+      const title = type === 'hour' ? 'Enter Hour' : 'Enter Minute';
+      const message = type === 'hour' ? 'Enter hour (1-12)' : 'Enter minute (0-59)';
+      
+      Alert.prompt(
+        title,
+        message,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'OK',
+            onPress: (text) => {
+              const value = parseInt(text || '');
+              const isValidHour = type === 'hour' && value >= 1 && value <= 12;
+              const isValidMinute = type === 'minute' && value >= 0 && value <= 59;
+              
+              if (isValidHour || isValidMinute) {
+                const valueStr = value.toString().padStart(2, '0');
+                
+                if (type === 'hour') {
+                  setDisplayHour(valueStr);
+                } else {
+                  setDisplayMinute(valueStr);
+                }
+                
+                setTimeout(() => {
+                  scrollToTimeValue(type, valueStr);
+                }, 100);
+              } else {
+                const range = type === 'hour' ? '1 and 12' : '0 and 59';
+                Alert.alert(`Invalid ${type.charAt(0).toUpperCase() + type.slice(1)}`, `Please enter a number between ${range}`);
+              }
+            }
+          }
+        ],
+        'plain-text',
+        currentValue
+      );
+    };
+    
+    const scrollToTimeValue = (type: 'hour' | 'minute', value: string) => {
+      const itemHeight = 48;
+      const { hours, minutes } = generateTimeOptions();
+      const values = type === 'hour' ? hours : minutes;
+      const index = values.findIndex(v => v === value);
+      
+      if (index !== -1) {
+        if (type === 'hour' && hourScrollRef.current) {
+          hourScrollRef.current.scrollTo({
+            y: index * itemHeight,
+            animated: true
+          });
+        }
+        if (type === 'minute' && minuteScrollRef.current) {
+          minuteScrollRef.current.scrollTo({
+            y: index * itemHeight,
+            animated: true
+          });
+        }
+      }
+    };
+    
     const { hours, minutes } = generateTimeOptions();
     
     return (
@@ -463,19 +526,25 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
               </View>
 
               <View style={styles.timeDisplay}>
-                <View style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                  onPress={() => handleTimeBoxTap('hour')}
+                >
                   <Text style={[styles.timeBoxText, { color: theme.text }]}>
                     {displayHour}
                   </Text>
-                </View>
+                </TouchableOpacity>
                 
                 <Text style={[styles.timeSeparator, { color: theme.text }]}>:</Text>
                 
-                <View style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                  onPress={() => handleTimeBoxTap('minute')}
+                >
                   <Text style={[styles.timeBoxText, { color: theme.text }]}>
                     {displayMinute}
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.scrollWheelsContainer}>

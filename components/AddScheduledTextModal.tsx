@@ -425,19 +425,25 @@ export function AddScheduledTextModal({ visible, onClose, onTextScheduled, theme
 
               {/* Time Display */}
               <View style={styles.timeDisplay}>
-                <View style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                  onPress={() => handleTimeBoxTap('hour')}
+                >
                   <Text style={[styles.timeBoxText, { color: theme.text }]}>
                     {displayHour}
                   </Text>
-                </View>
+                </TouchableOpacity>
                 
                 <Text style={[styles.timeSeparator, { color: theme.text }]}>:</Text>
                 
-                <View style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                <TouchableOpacity
+                  style={[styles.timeBox, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                  onPress={() => handleTimeBoxTap('minute')}
+                >
                   <Text style={[styles.timeBoxText, { color: theme.text }]}>
                     {displayMinute}
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
               {/* Scroll Wheels */}
