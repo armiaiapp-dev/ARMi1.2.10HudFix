@@ -31,15 +31,6 @@ export default function TabLayout() {
           },
         }}>
         <Tabs.Screen
-          name="index"
-          options={{
-            title: `My ${getRosterLabel()}`,
-            tabBarIcon: ({ size, color }) => (
-              <Users size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
           name="add"
           options={{
             title: 'ARMi',
@@ -49,20 +40,29 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="reminders"
-          options={{
-            title: 'Reminders',
-            tabBarIcon: ({ size, color }) => (
-              <Bell size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
           name="scheduler"
           options={{
             title: 'Scheduler',
             tabBarIcon: ({ size, color }) => (
               <MessageSquareText size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: `My ${getRosterLabel()}`,
+            tabBarIcon: ({ size, color }) => (
+              <Users size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="reminders"
+          options={{
+            title: 'Reminders',
+            tabBarIcon: ({ size, color }) => (
+              <Bell size={size} color={color} />
             ),
           }}
         />
