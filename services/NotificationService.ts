@@ -33,7 +33,7 @@ const RANDOM_APP_MESSAGES = [
   },
   {
     title: "Are your profiles up to date🤔",
-    body: "Open ARMi to review notes, update details, and keep your roster fresh."
+    body: "Open ARMi to review notes, update last contact, and keep your roster fresh."
   },
   {
     title: "Check in with your people 👋",
