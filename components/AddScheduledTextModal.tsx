@@ -534,7 +534,6 @@ export function AddScheduledTextModal({ visible, onClose, onTextScheduled, theme
               <View style={styles.scrollWheelsContainer}>
                 {/* Hours Column */}
                 <View style={styles.wheelColumn}>
-                  <Text style={[styles.wheelLabel, { color: theme.primary }]}>Hour</Text>
                   <ScrollView
                     ref={hourScrollRef}
                     style={styles.scrollWheel}
@@ -567,7 +566,6 @@ export function AddScheduledTextModal({ visible, onClose, onTextScheduled, theme
 
                 {/* Minutes Column */}
                 <View style={styles.wheelColumn}>
-                  <Text style={[styles.wheelLabel, { color: theme.primary }]}>Minute</Text>
                   <ScrollView
                     ref={minuteScrollRef}
                     style={styles.scrollWheel}
@@ -1139,7 +1137,7 @@ const styles = StyleSheet.create({
   scrollWheelsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 40,
+    gap: 30,
   },
   wheelColumn: {
     flex: 1,
@@ -1152,7 +1150,7 @@ const styles = StyleSheet.create({
   },
   scrollWheel: {
     height: 200,
-    width: 80,
+    width: 70,
   },
   scrollContent: {
     paddingVertical: 76,

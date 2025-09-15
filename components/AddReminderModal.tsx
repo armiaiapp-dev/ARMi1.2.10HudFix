@@ -1238,7 +1238,7 @@ const styles = StyleSheet.create({
   scrollWheelsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 40,
+    gap: 30,
   },
   wheelColumn: {
     flex: 1,
@@ -1251,7 +1251,7 @@ const styles = StyleSheet.create({
   },
   scrollWheel: {
     height: 200,
-    width: 80,
+    width: 70,
   },
   scrollContent: {
     paddingVertical: 76, // Centers the first/last items
