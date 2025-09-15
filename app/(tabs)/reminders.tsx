@@ -219,6 +219,15 @@ export default function RemindersScreen() {
                   : `No ${selectedFilter} reminders found`
                 }
               </Text>
+              {selectedFilter === 'all' && (
+                <TouchableOpacity
+                  style={[styles.emptyActionButton, { backgroundColor: colors.secondary }]}
+                  onPress={() => setAddReminderModalVisible(true)}
+                >
+                  <Plus size={20} color="#FFFFFF" />
+                  <Text style={styles.emptyActionButtonText}>Add Your First Reminder</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </ScrollView>
