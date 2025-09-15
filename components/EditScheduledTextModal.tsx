@@ -469,28 +469,6 @@ export function EditScheduledTextModal({ visible, onClose, onTextUpdated, schedu
       );
     };
     
-    const scrollToTimeValue = (type: 'hour' | 'minute', value: string) => {
-      const itemHeight = 48;
-      const { hours, minutes } = generateTimeOptions();
-      const values = type === 'hour' ? hours : minutes;
-      const index = values.findIndex(v => v === value);
-      
-      if (index !== -1) {
-        if (type === 'hour' && hourScrollRef.current) {
-          hourScrollRef.current.scrollTo({
-            y: index * itemHeight,
-            animated: true
-          });
-        }
-        if (type === 'minute' && minuteScrollRef.current) {
-          minuteScrollRef.current.scrollTo({
-            y: index * itemHeight,
-            animated: true
-          });
-        }
-      }
-    };
-    
     const { hours, minutes } = generateTimeOptions();
     
     return (
