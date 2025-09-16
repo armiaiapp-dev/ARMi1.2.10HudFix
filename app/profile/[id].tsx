@@ -178,6 +178,15 @@ export default function ProfileDetail() {
               </Text>
             </View>
           )}
+          
+          {profile.lastContactDate && (
+            <View style={styles.infoItem}>
+              <Calendar size={20} color={theme.primary} style={styles.infoIcon} />
+              <Text style={[styles.infoText, { color: theme.text }]}>
+                Last Contact: {formatDate(profile.lastContactDate)}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Basic Information */}

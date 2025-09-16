@@ -9,14 +9,17 @@ import {
   TouchableOpacity, 
   TextInput, 
   SafeAreaView,
+  Modal,
   Image,
   Switch
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Save, Plus, X, User, Palette } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { ArrowLeft, Save, Plus, X, User, Palette, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Heart, Briefcase, House } from 'lucide-react-native';
 import { Camera } from 'lucide-react-native';
-import { DatabaseService } from '../../../services/DatabaseService';
+import { DatabaseService } from '../../services/DatabaseService';
+import { scheduleBirthdayText, scheduleReminder, cancelById } from '@/services/Scheduler';
 import { useTheme } from '@/context/ThemeContext';
 
 const TAG_COLORS = [
@@ -39,8 +42,8 @@ const RELATIONSHIP_OPTIONS = [
 ];
 
 export default function EditProfile() {
-  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { isDark } = useTheme();
   
   const [profile, setProfile] = useState({
@@ -66,7 +69,7 @@ export default function EditProfile() {
     tiktok: '',
     facebook: '',
     birthday: '',
-    lastContactDate: null,
+    lastContactDate: new Date().toISOString(),
     // Text fields for editing
     parentsText: '',
     kidsText: '',
@@ -86,6 +89,8 @@ export default function EditProfile() {
   const [selectedTagColor, setSelectedTagColor] = useState(TAG_COLORS[0]);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showLastContactCalendar, setShowLastContactCalendar] = useState(false);
+  const [lastContactCalendarDate, setLastContactCalendarDate] = useState(new Date());
 
   const theme = {
     text: '#f0f0f0',
@@ -102,51 +107,47 @@ export default function EditProfile() {
     loadProfile();
   }, [id]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfile();
+    }, [id])
+  );
+
   const loadProfile = async () => {
     try {
       if (id) {
         const profileData = await DatabaseService.getProfileById(parseInt(id));
         if (profileData) {
-          setProfile(profileData);
-          populateProfileData(profileData);
+          // Convert arrays back to text for editing
+          const textFields = {
+            parentsText: profileData.parents ? profileData.parents.join(', ') : '',
+            kidsText: profileData.kids ? profileData.kids.join(', ') : '',
+            brothersText: profileData.brothers ? profileData.brothers.join(', ') : '',
+            sistersText: profileData.sisters ? profileData.sisters.join(', ') : '',
+            siblingsText: profileData.siblings ? profileData.siblings.join(', ') : '',
+            likesText: profileData.foodLikes ? profileData.foodLikes.join(', ') : '',
+            dislikesText: profileData.foodDislikes ? profileData.foodDislikes.join(', ') : '',
+            interestsText: profileData.interests ? profileData.interests.join(', ') : '',
+            birthdayTextEnabled: Boolean(profileData.birthdayTextEnabled),
+            giftReminderEnabled: Boolean(profileData.giftReminderEnabled),
+          };
+          
+          setProfile({ ...profileData, ...textFields });
+          
+          if (profileData.photoUri) {
+            setSelectedImage({ uri: profileData.photoUri });
+          }
+          
+          // Initialize calendar date
+          if (profileData.lastContactDate) {
+            setLastContactCalendarDate(new Date(profileData.lastContactDate));
+          }
         }
       }
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const populateProfileData = (profileData: any) => {
-    // Convert arrays to comma-separated strings for text inputs
-    const parentsText = profileData.parents ? profileData.parents.join(', ') : '';
-    const kidsText = profileData.kids ? profileData.kids.join(', ') : '';
-    const brothersText = profileData.brothers ? profileData.brothers.join(', ') : '';
-    const sistersText = profileData.sisters ? profileData.sisters.join(', ') : '';
-    const siblingsText = profileData.siblings ? profileData.siblings.join(', ') : '';
-    const likesText = profileData.foodLikes ? profileData.foodLikes.join(', ') : '';
-    const dislikesText = profileData.foodDislikes ? profileData.foodDislikes.join(', ') : '';
-    const interestsText = profileData.interests ? profileData.interests.join(', ') : '';
-
-    // Update profile state with text representations
-    setProfile(prev => ({
-      ...prev,
-      parentsText,
-      kidsText,
-      brothersText,
-      sistersText,
-      siblingsText,
-      likesText,
-      dislikesText,
-      interestsText,
-      birthdayTextEnabled: Boolean(profileData.birthdayTextEnabled),
-      giftReminderEnabled: Boolean(profileData.giftReminderEnabled),
-    }));
-
-    // Set selected image if profile has a photo
-    if (profileData.photoUri) {
-      setSelectedImage({ uri: profileData.photoUri });
     }
   };
 
@@ -179,245 +180,155 @@ export default function EditProfile() {
 
     setSaving(true);
     try {
-      // Get existing profile data to compare states
+      // Get the existing profile to check current birthday text and gift reminder status
       const existingProfile = await DatabaseService.getProfileById(parseInt(id));
-      if (!existingProfile) {
-        throw new Error('Profile not found');
-      }
       
-      // Prepare base profile data
-      const baseProfileData = {
-        ...profile,
-        id: parseInt(id),
-      };
-      
-      // Update the base profile first
-      await DatabaseService.createOrUpdateProfile(baseProfileData);
-      
-      // Track scheduling results
-      let birthdayTextResult = { scheduled: false, error: null, date: null };
-      let giftReminderResult = { scheduled: false, error: null, date: null };
-      
-      // Handle birthday text scheduling independently
-      const wasBirthdayTextEnabled = Boolean(existingProfile.birthdayTextEnabled);
-      const isBirthdayTextEnabled = Boolean(profile.birthdayTextEnabled);
-      const birthdayChanged = existingProfile.birthday !== profile.birthday;
-      const phoneChanged = existingProfile.phone !== profile.phone;
-      
-      if (isBirthdayTextEnabled && profile.phone && profile.birthday) {
-        // Birthday text is enabled and requirements are met
-        if (!wasBirthdayTextEnabled || birthdayChanged || phoneChanged) {
-          // Either newly enabled or key data changed - reschedule
-          try {
-            console.log('Scheduling/rescheduling birthday text for profile:', id);
-            
-            // Cancel existing if it exists
-            if (existingProfile.birthdayTextScheduledTextId) {
-              const existingScheduledText = await DatabaseService.getScheduledTextById(existingProfile.birthdayTextScheduledTextId);
-              if (existingScheduledText?.notificationId) {
-                const { cancelById } = await import('@/services/Scheduler');
-                await cancelById(existingScheduledText.notificationId);
+      // Handle birthday text toggle changes
+      if (profile.birthdayTextEnabled !== Boolean(existingProfile?.birthdayTextEnabled)) {
+        if (profile.birthdayTextEnabled) {
+          // Enabling birthday text
+          if (profile.phone && profile.birthday) {
+            try {
+              // Calculate next birthday occurrence
+              const [month, day, year] = profile.birthday.split('/').map(num => parseInt(num));
+              const currentYear = new Date().getFullYear();
+              let birthdayThisYear = new Date(currentYear, month - 1, day, 9, 0, 0, 0);
+              
+              if (birthdayThisYear <= new Date()) {
+                birthdayThisYear = new Date(currentYear + 1, month - 1, day, 9, 0, 0, 0);
               }
+              
+              // Create scheduled text entry
+              const scheduledTextData = {
+                profileId: parseInt(id),
+                phoneNumber: profile.phone,
+                message: 'Happy Birthday!!',
+                scheduledFor: birthdayThisYear,
+              };
+              
+              const scheduledTextId = await DatabaseService.createScheduledText(scheduledTextData);
+              
+              // Schedule the notification
+              const result = await scheduleBirthdayText({
+                messageId: scheduledTextId.toString(),
+                phoneNumber: profile.phone,
+                message: 'Happy Birthday!!',
+                datePick: birthdayThisYear,
+                timePick: birthdayThisYear,
+                profileId: id,
+              });
+              
+              if (result.id) {
+                await DatabaseService.updateScheduledTextNotificationId(scheduledTextId, result.id);
+              }
+              
+              // Update profile with birthday text info
+              profile.birthdayTextScheduledTextId = scheduledTextId;
+            } catch (error) {
+              console.error('Error scheduling birthday text:', error);
+              profile.birthdayTextEnabled = false;
+            }
+          }
+        } else {
+          // Disabling birthday text
+          if (existingProfile?.birthdayTextScheduledTextId) {
+            try {
+              // Get the scheduled text to cancel its notification
+              const scheduledText = await DatabaseService.getScheduledTextById(existingProfile.birthdayTextScheduledTextId);
+              if (scheduledText?.notificationId) {
+                await cancelById(scheduledText.notificationId);
+              }
+              
+              // Delete the scheduled text
               await DatabaseService.deleteScheduledText(existingProfile.birthdayTextScheduledTextId);
+            } catch (error) {
+              console.error('Error cancelling birthday text:', error);
             }
-            
-            // Calculate next birthday occurrence
-            const [month, day, year] = profile.birthday.split('/').map(num => parseInt(num));
-            const currentYear = new Date().getFullYear();
-            let birthdayThisYear = new Date(currentYear, month - 1, day, 9, 0, 0, 0); // 9 AM
-            
-            // If birthday has passed this year, schedule for next year
-            if (birthdayThisYear <= new Date()) {
-              birthdayThisYear = new Date(currentYear + 1, month - 1, day, 9, 0, 0, 0);
-            }
-            
-            // Create new scheduled text entry
-            const scheduledTextData = {
-              profileId: parseInt(id),
-              phoneNumber: profile.phone,
-              message: 'Happy Birthday!!',
-              scheduledFor: birthdayThisYear,
-            };
-            
-            const scheduledTextId = await DatabaseService.createScheduledText(scheduledTextData);
-            
-            // Schedule the notification
-            const result = await scheduleBirthdayText({
-              messageId: scheduledTextId.toString(),
-              phoneNumber: profile.phone,
-              message: 'Happy Birthday!!',
-              datePick: birthdayThisYear,
-              timePick: birthdayThisYear,
-              profileId: id,
-            });
-            
-            // Update notification ID in scheduled text
-            if (result.id) {
-              await DatabaseService.updateScheduledTextNotificationId(scheduledTextId, result.id);
-            }
-            
-            // Update profile with birthday text info
-            await DatabaseService.updateProfileBirthdayTextStatus(parseInt(id), true, scheduledTextId);
-            
-            birthdayTextResult = { scheduled: true, error: null, date: birthdayThisYear };
-            console.log('Birthday text scheduled successfully');
-          } catch (birthdayError) {
-            console.error('Error scheduling birthday text:', birthdayError);
-            birthdayTextResult = { scheduled: false, error: birthdayError.message, date: null };
-            // Update profile to disable birthday text if scheduling failed
-            await DatabaseService.updateProfileBirthdayTextStatus(parseInt(id), false, null);
           }
-        }
-        // If enabled but no changes needed, keep existing state
-      } else if (wasBirthdayTextEnabled && !isBirthdayTextEnabled) {
-        // Birthday text is being disabled
-        try {
-          console.log('Disabling birthday text for profile:', id);
-          
-          if (existingProfile.birthdayTextScheduledTextId) {
-            const existingScheduledText = await DatabaseService.getScheduledTextById(existingProfile.birthdayTextScheduledTextId);
-            if (existingScheduledText?.notificationId) {
-              const { cancelById } = await import('@/services/Scheduler');
-              await cancelById(existingScheduledText.notificationId);
-            }
-            await DatabaseService.deleteScheduledText(existingProfile.birthdayTextScheduledTextId);
-          }
-          
-          await DatabaseService.updateProfileBirthdayTextStatus(parseInt(id), false, null);
-          console.log('Birthday text disabled successfully');
-        } catch (error) {
-          console.error('Error disabling birthday text:', error);
+          profile.birthdayTextScheduledTextId = null;
         }
       }
       
-      // Handle gift reminder scheduling independently
-      const wasGiftReminderEnabled = Boolean(existingProfile.giftReminderEnabled);
-      const isGiftReminderEnabled = Boolean(profile.giftReminderEnabled);
-      
-      if (isGiftReminderEnabled && profile.birthday) {
-        // Gift reminder is enabled and requirements are met
-        if (!wasGiftReminderEnabled || birthdayChanged) {
-          // Either newly enabled or birthday changed - reschedule
-          try {
-            console.log('Scheduling/rescheduling gift reminder for profile:', id);
-            
-            // Cancel existing if it exists
-            if (existingProfile.giftReminderId) {
-              const existingReminder = await DatabaseService.getReminderById(existingProfile.giftReminderId);
-              if (existingReminder?.notificationId) {
-                const { cancelById } = await import('@/services/Scheduler');
-                await cancelById(existingReminder.notificationId);
+      // Handle gift reminder toggle changes
+      if (profile.giftReminderEnabled !== Boolean(existingProfile?.giftReminderEnabled)) {
+        if (profile.giftReminderEnabled) {
+          // Enabling gift reminder
+          if (profile.birthday) {
+            try {
+              // Calculate next birthday occurrence
+              const [month, day, year] = profile.birthday.split('/').map(num => parseInt(num));
+              const currentYear = new Date().getFullYear();
+              let birthdayThisYear = new Date(currentYear, month - 1, day, 9, 0, 0, 0);
+              
+              if (birthdayThisYear <= new Date()) {
+                birthdayThisYear = new Date(currentYear + 1, month - 1, day, 9, 0, 0, 0);
               }
+              
+              // Calculate 21 days before birthday
+              const giftReminderDate = new Date(birthdayThisYear);
+              giftReminderDate.setDate(giftReminderDate.getDate() - 21);
+              
+              // Create reminder entry
+              const reminderData = {
+                profileId: parseInt(id),
+                title: `Get Gift for ${profile.name}`,
+                description: 'Their birthday is in 3 weeks!!',
+                type: 'general',
+                scheduledFor: giftReminderDate,
+              };
+              
+              const reminderId = await DatabaseService.createReminder(reminderData);
+              
+              // Schedule the notification
+              const result = await scheduleReminder({
+                title: `Get Gift for ${profile.name}`,
+                body: 'Their birthday is in 3 weeks!!',
+                datePick: giftReminderDate,
+                timePick: giftReminderDate,
+                reminderId: reminderId.toString(),
+                isGiftReminder: true,
+                profileId: id,
+              });
+              
+              if (result.id) {
+                await DatabaseService.updateReminderNotificationId(reminderId, result.id);
+              }
+              
+              // Update profile with gift reminder info
+              profile.giftReminderId = reminderId;
+            } catch (error) {
+              console.error('Error scheduling gift reminder:', error);
+              profile.giftReminderEnabled = false;
+            }
+          }
+        } else {
+          // Disabling gift reminder
+          if (existingProfile?.giftReminderId) {
+            try {
+              // Get the reminder to cancel its notification
+              const reminder = await DatabaseService.getReminderById(existingProfile.giftReminderId);
+              if (reminder?.notificationId) {
+                await cancelById(reminder.notificationId);
+              }
+              
+              // Delete the reminder
               await DatabaseService.deleteReminder(existingProfile.giftReminderId);
+            } catch (error) {
+              console.error('Error cancelling gift reminder:', error);
             }
-            
-            // Calculate next birthday occurrence
-            const [month, day, year] = profile.birthday.split('/').map(num => parseInt(num));
-            const currentYear = new Date().getFullYear();
-            let birthdayThisYear = new Date(currentYear, month - 1, day, 9, 0, 0, 0); // 9 AM
-            
-            // If birthday has passed this year, schedule for next year
-            if (birthdayThisYear <= new Date()) {
-              birthdayThisYear = new Date(currentYear + 1, month - 1, day, 9, 0, 0, 0);
-            }
-            
-            // Calculate 21 days before birthday
-            const giftReminderDate = new Date(birthdayThisYear);
-            giftReminderDate.setDate(giftReminderDate.getDate() - 21);
-            
-            // Create reminder entry
-            const reminderData = {
-              profileId: parseInt(id),
-              title: `Get Gift for ${profile.name}`,
-              description: 'Their birthday is in 3 weeks!!',
-              type: 'general',
-              scheduledFor: giftReminderDate,
-            };
-            
-            const reminderId = await DatabaseService.createReminder(reminderData);
-            
-            // Schedule the notification
-            const { scheduleReminder } = await import('@/services/Scheduler');
-            const result = await scheduleReminder({
-              title: `Get Gift for ${profile.name}`,
-              body: 'Their birthday is in 3 weeks!!',
-              datePick: giftReminderDate,
-              timePick: giftReminderDate,
-              reminderId: reminderId.toString(),
-              isGiftReminder: true,
-              profileId: id,
-            });
-            
-            // Update notification ID in reminder
-            if (result.id) {
-              await DatabaseService.updateReminderNotificationId(reminderId, result.id);
-            }
-            
-            // Update profile with gift reminder info
-            await DatabaseService.updateProfileGiftReminderStatus(parseInt(id), true, reminderId);
-            
-            giftReminderResult = { scheduled: true, error: null, date: giftReminderDate };
-            console.log('Gift reminder scheduled successfully');
-          } catch (giftReminderError) {
-            console.error('Error scheduling gift reminder:', giftReminderError);
-            giftReminderResult = { scheduled: false, error: giftReminderError.message, date: null };
-            // Update profile to disable gift reminder if scheduling failed
-            await DatabaseService.updateProfileGiftReminderStatus(parseInt(id), false, null);
           }
-        }
-        // If enabled but no changes needed, keep existing state
-      } else if (wasGiftReminderEnabled && !isGiftReminderEnabled) {
-        // Gift reminder is being disabled
-        try {
-          console.log('Disabling gift reminder for profile:', id);
-          
-          if (existingProfile.giftReminderId) {
-            const existingReminder = await DatabaseService.getReminderById(existingProfile.giftReminderId);
-            if (existingReminder?.notificationId) {
-              const { cancelById } = await import('@/services/Scheduler');
-              await cancelById(existingReminder.notificationId);
-            }
-            await DatabaseService.deleteReminder(existingProfile.giftReminderId);
-          }
-          
-          await DatabaseService.updateProfileGiftReminderStatus(parseInt(id), false, null);
-          console.log('Gift reminder disabled successfully');
-        } catch (error) {
-          console.error('Error disabling gift reminder:', error);
+          profile.giftReminderId = null;
         }
       }
+
+      // Update the profile
+      await DatabaseService.createOrUpdateProfile({ ...profile, id: parseInt(id) });
       
-      // Show consolidated success message
-      let alertTitle = 'Profile Updated';
-      let alertMessage = 'Profile updated successfully!';
-      
-      if (birthdayTextResult.scheduled && giftReminderResult.scheduled) {
-        alertMessage += `\n\nBirthday text scheduled for ${birthdayTextResult.date.toLocaleDateString()}.\nGift reminder scheduled for ${giftReminderResult.date.toLocaleDateString()}.`;
-      } else if (birthdayTextResult.scheduled) {
-        alertMessage += `\n\nBirthday text scheduled for ${birthdayTextResult.date.toLocaleDateString()}.`;
-        if (profile.giftReminderEnabled && !giftReminderResult.scheduled) {
-          alertMessage += '\n\nGift reminder could not be scheduled. You can try again later.';
-        }
-      } else if (giftReminderResult.scheduled) {
-        alertMessage += `\n\nGift reminder scheduled for ${giftReminderResult.date.toLocaleDateString()}.`;
-        if (profile.birthdayTextEnabled && !birthdayTextResult.scheduled) {
-          alertMessage += '\n\nBirthday text could not be scheduled. You can try again later.';
-        }
-      } else {
-        // Neither scheduled, but check if they were requested
-        if (profile.birthdayTextEnabled && !birthdayTextResult.scheduled) {
-          alertMessage += '\n\nBirthday text could not be scheduled. You can try again later.';
-        }
-        if (profile.giftReminderEnabled && !giftReminderResult.scheduled) {
-          alertMessage += '\n\nGift reminder could not be scheduled. You can try again later.';
-        }
-      }
-      
-      Alert.alert(alertTitle, alertMessage, [
+      Alert.alert('Success', 'Profile updated successfully', [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error) {
-      console.error('Error saving profile:', error);
+      console.error('Error updating profile:', error);
       Alert.alert('Error', 'Failed to update profile');
     } finally {
       setSaving(false);
@@ -456,128 +367,94 @@ export default function EditProfile() {
 
   const handleAddPhoto = async () => {
     if (Platform.OS === 'ios') {
-      console.log('📸 iOS: Starting ActionSheetIOS for photo selection');
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options: ['Choose from Library', 'Take Photo', 'Cancel'],
           cancelButtonIndex: 2,
         },
         async (buttonIndex) => {
-          console.log('📸 iOS: ActionSheet button pressed:', buttonIndex);
           try {
             if (buttonIndex === 0) {
-              console.log('📸 iOS: User selected "Choose from Library"');
               const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              console.log('📸 iOS: Media library permission status:', perm.status);
               if (perm.status !== 'granted') {
                 Alert.alert('Permission needed', 'Enable Photos in Settings to add a picture.');
                 return;
               }
-              console.log('📸 iOS: Calling ImagePicker.launchImageLibraryAsync...');
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.8,
               });
-              console.log('📸 iOS: ImagePicker library result:', result);
               if (!result.canceled && result.assets?.[0]) {
                 const asset = result.assets[0];
-                console.log('📸 iOS: Selected asset from library:', asset.uri);
                 setSelectedImage(asset);
                 updateField('photoUri', asset.uri);
-              } else {
-                console.log('📸 iOS: Library picker was canceled or no asset selected');
               }
             } else if (buttonIndex === 1) {
-              console.log('📸 iOS: User selected "Take Photo"');
               const perm = await ImagePicker.requestCameraPermissionsAsync();
-              console.log('📸 iOS: Camera permission status:', perm.status);
               if (perm.status !== 'granted') {
                 Alert.alert('Permission needed', 'Enable Camera in Settings to take a picture.');
                 return;
               }
-              console.log('📸 iOS: Calling ImagePicker.launchCameraAsync...');
               const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.8,
               });
-              console.log('📸 iOS: ImagePicker camera result:', result);
               if (!result.canceled && result.assets?.[0]) {
                 const asset = result.assets[0];
-                console.log('📸 iOS: Selected asset from camera:', asset.uri);
                 setSelectedImage(asset);
                 updateField('photoUri', asset.uri);
-              } else {
-                console.log('📸 iOS: Camera picker was canceled or no asset selected');
               }
-            } else {
-              console.log('📸 iOS: User canceled ActionSheet');
             }
-          } catch (e: any) {
-            console.error('📸 iOS: Picker error:', e);
+          } catch (e) {
             Alert.alert('Error', 'Failed to open picker. Try again.');
           }
         }
       );
     } else {
-      console.log('📸 Android: Starting Alert for photo selection');
       Alert.alert('Add Photo', 'Choose an option:', [
         {
           text: 'Choose from Library',
           onPress: async () => {
-            console.log('📸 Android: User selected "Choose from Library"');
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            console.log('📸 Android: Media library permission status:', perm.status);
             if (perm.status !== 'granted') {
               Alert.alert('Permission needed', 'Enable Photos in Settings to add a picture.');
               return;
             }
-            console.log('📸 Android: Calling ImagePicker.launchImageLibraryAsync...');
             const result = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: true,
               aspect: [1, 1],
               quality: 0.8,
             });
-            console.log('📸 Android: ImagePicker library result:', result);
             if (!result.canceled && result.assets?.[0]) {
               const asset = result.assets[0];
-              console.log('📸 Android: Selected asset from library:', asset.uri);
               setSelectedImage(asset);
               updateField('photoUri', asset.uri);
-            } else {
-              console.log('📸 Android: Library picker was canceled or no asset selected');
             }
           },
         },
         {
           text: 'Take Photo',
           onPress: async () => {
-            console.log('📸 Android: User selected "Take Photo"');
             const perm = await ImagePicker.requestCameraPermissionsAsync();
-            console.log('📸 Android: Camera permission status:', perm.status);
             if (perm.status !== 'granted') {
               Alert.alert('Permission needed', 'Enable Camera in Settings to take a picture.');
               return;
             }
-            console.log('📸 Android: Calling ImagePicker.launchCameraAsync...');
             const result = await ImagePicker.launchCameraAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               allowsEditing: true,
               aspect: [1, 1],
               quality: 0.8,
             });
-            console.log('📸 Android: ImagePicker camera result:', result);
             if (!result.canceled && result.assets?.[0]) {
               const asset = result.assets[0];
-              console.log('📸 Android: Selected asset from camera:', asset.uri);
               setSelectedImage(asset);
               updateField('photoUri', asset.uri);
-            } else {
-              console.log('📸 Android: Camera picker was canceled or no asset selected');
             }
           },
         },
@@ -591,11 +468,9 @@ export default function EditProfile() {
     updateField('photoUri', null);
   };
 
-  const handleBirthdayInputChange = (text: string) => {
-    // Remove all non-digit characters
+  const handleBirthdayInputChange = (text) => {
     const digitsOnly = text.replace(/\D/g, '');
     
-    // Format with slashes as user types
     let formatted = '';
     if (digitsOnly.length >= 1) {
       formatted = digitsOnly.substring(0, 2);
@@ -607,16 +482,13 @@ export default function EditProfile() {
       formatted += '/' + digitsOnly.substring(4, 8);
     }
     
-    // Update the birthday field with formatted text
     updateField('birthday', formatted);
     
-    // Clear age if input is incomplete
     if (formatted.length < 10) {
       updateField('age', null);
       return;
     }
     
-    // Only validate and calculate age when we have a complete date (MM/DD/YYYY)
     if (formatted.length === 10) {
       const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}$/;
       
@@ -632,13 +504,11 @@ export default function EditProfile() {
         return;
       }
       
-      // Parse the date
       const [month, day, year] = formatted.split('/').map(num => parseInt(num));
       const inputDate = new Date(year, month - 1, day);
       const today = new Date();
-      today.setHours(23, 59, 59, 999); // End of today
+      today.setHours(23, 59, 59, 999);
       
-      // Check if date is valid (handles invalid dates like 02/30/2000)
       if (inputDate.getMonth() !== month - 1 || inputDate.getDate() !== day || inputDate.getFullYear() !== year) {
         Alert.alert(
           'Invalid Date',
@@ -651,7 +521,6 @@ export default function EditProfile() {
         return;
       }
       
-      // Check if date is in the future
       if (inputDate > today) {
         Alert.alert(
           'Invalid Birthday',
@@ -664,13 +533,12 @@ export default function EditProfile() {
         return;
       }
       
-      // Calculate and set age
       const calculatedAge = calculateAge(inputDate);
       updateField('age', calculatedAge);
     }
   };
 
-  const calculateAge = (birthDate: Date) => {
+  const calculateAge = (birthDate) => {
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -682,6 +550,120 @@ export default function EditProfile() {
     return age;
   };
 
+  const formatDisplayDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const generateCalendarDays = () => {
+    const year = lastContactCalendarDate.getFullYear();
+    const month = lastContactCalendarDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days = [];
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  };
+
+  const navigateMonth = (direction: number) => {
+    const newDate = new Date(lastContactCalendarDate);
+    newDate.setMonth(newDate.getMonth() + direction);
+    setLastContactCalendarDate(newDate);
+  };
+
+  const selectLastContactDate = (date: Date) => {
+    const dateString = date.toISOString();
+    updateField('lastContactDate', dateString);
+    setLastContactCalendarDate(date);
+    setShowLastContactCalendar(false);
+  };
+
+  const LastContactCalendarModal = () => (
+    <Modal
+      visible={showLastContactCalendar}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowLastContactCalendar(false)}
+    >
+      <View style={styles.calendarOverlay}>
+        <View style={[styles.calendarModal, { backgroundColor: theme.cardBackground }]}>
+          <View style={[styles.calendarHeader, { borderBottomColor: theme.border }]}>
+            <TouchableOpacity onPress={() => navigateMonth(-1)}>
+              <ChevronLeft size={24} color={theme.primary} />
+            </TouchableOpacity>
+            <Text style={[styles.calendarTitle, { color: theme.text }]}>
+              {lastContactCalendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </Text>
+            <TouchableOpacity onPress={() => navigateMonth(1)}>
+              <ChevronRight size={24} color={theme.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calendarContent}>
+            <View style={styles.weekDays}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <Text key={day} style={[styles.weekDayText, { color: theme.primary }]}>
+                  {day}
+                </Text>
+              ))}
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {generateCalendarDays().map((date, index) => {
+                const isCurrentMonth = date.getMonth() === lastContactCalendarDate.getMonth();
+                const isSelected = date.toDateString() === new Date(profile.lastContactDate).toDateString();
+                const isToday = date.toDateString() === new Date().toDateString();
+                const isFuture = date > new Date();
+
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.calendarDay,
+                      isSelected && { backgroundColor: theme.secondary },
+                      isToday && !isSelected && { borderColor: theme.secondary, borderWidth: 1 },
+                      isFuture && { opacity: 0.5 }
+                    ]}
+                    onPress={() => !isFuture && selectLastContactDate(date)}
+                    disabled={isFuture}
+                  >
+                    <Text style={[
+                      styles.calendarDayText,
+                      { color: isCurrentMonth ? theme.text : theme.primary },
+                      isSelected && { color: '#FFFFFF' },
+                      isFuture && { color: theme.primary }
+                    ]}>
+                      {date.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.calendarFooter}>
+              <TouchableOpacity
+                style={[styles.calendarButton, { backgroundColor: theme.accent, borderColor: theme.border }]}
+                onPress={() => setShowLastContactCalendar(false)}
+              >
+                <Text style={[styles.calendarButtonText, { color: theme.text }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (loading) {
     return (
@@ -809,28 +791,28 @@ export default function EditProfile() {
               {RELATIONSHIP_OPTIONS.map((option) => {
                 return (
                   <TouchableOpacity
-                  key={option.key}
-                  style={[
-                    styles.relationshipOption,
-                    { 
-                      backgroundColor: profile.relationship === option.key ? option.color : (isDark ? '#374151' : '#E5E7EB'),
-                      borderColor: theme.border 
-                    }
-                  ]}
-                  onPress={() => updateField('relationship', option.key)}
-                >
-                  {(() => {
-                    const IconComponent = option.icon === 'Heart' ? Heart :
-                                        option.icon === 'Briefcase' ? Briefcase :
-                                        option.icon === 'House' ? House : User;
-                    return <IconComponent size={16} color={profile.relationship === option.key ? '#FFFFFF' : (isDark ? theme.text : '#374151')} />;
-                  })()}
-                  <Text style={[
-                    styles.relationshipOptionText,
-                    { color: profile.relationship === option.key ? '#FFFFFF' : (isDark ? theme.text : '#374151') }
-                  ]}>
-                    {option.label}
-                  </Text>
+                    key={option.key}
+                    style={[
+                      styles.relationshipOption,
+                      { 
+                        backgroundColor: profile.relationship === option.key ? option.color : (isDark ? '#374151' : '#E5E7EB'),
+                        borderColor: theme.border 
+                      }
+                    ]}
+                    onPress={() => updateField('relationship', option.key)}
+                  >
+                    {(() => {
+                      const IconComponent = option.icon === 'Heart' ? Heart :
+                                          option.icon === 'Briefcase' ? Briefcase :
+                                          option.icon === 'House' ? House : User;
+                      return <IconComponent size={16} color={profile.relationship === option.key ? '#FFFFFF' : (isDark ? theme.text : '#374151')} />;
+                    })()}
+                    <Text style={[
+                      styles.relationshipOptionText,
+                      { color: profile.relationship === option.key ? '#FFFFFF' : (isDark ? theme.text : '#374151') }
+                    ]}>
+                      {option.label}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -962,9 +944,9 @@ export default function EditProfile() {
             <Text style={[styles.label, { color: theme.text }]}>Likes</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.accent, color: theme.text, borderColor: theme.border }]}
-              value={profile.likesText || ''}
+              value={profile.foodLikesText || ''}
               onChangeText={(text) => {
-                updateField('likesText', text);
+                updateField('foodLikesText', text);
                 updateField('foodLikes', text ? text.split(',').map(l => l.trim()).filter(l => l) : []);
               }}
               placeholder="e.g. pizza, hiking, movies, reading"
@@ -976,9 +958,9 @@ export default function EditProfile() {
             <Text style={[styles.label, { color: theme.text }]}>Dislikes</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.accent, color: theme.text, borderColor: theme.border }]}
-              value={profile.dislikesText || ''}
+              value={profile.foodDislikesText || ''}
               onChangeText={(text) => {
-                updateField('dislikesText', text);
+                updateField('foodDislikesText', text);
                 updateField('foodDislikes', text ? text.split(',').map(d => d.trim()).filter(d => d) : []);
               }}
               placeholder="e.g. spicy food, loud music, crowds"
@@ -1149,220 +1131,33 @@ export default function EditProfile() {
             numberOfLines={4}
           />
         </View>
+
+        {/* Last Contact */}
+        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Last Contact</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.text }]}>Last Contact Date</Text>
+            <TouchableOpacity
+              style={[styles.dateSelector, { backgroundColor: theme.accent, borderColor: theme.border }]}
+              onPress={() => {
+                setLastContactCalendarDate(new Date(profile.lastContactDate));
+                setShowLastContactCalendar(true);
+              }}
+            >
+              <Calendar size={20} color={theme.primary} />
+              <Text style={[styles.dateSelectorText, { color: theme.text }]}>
+                {formatDisplayDate(profile.lastContactDate)}
+              </Text>
+            </TouchableOpacity>
+            <Text style={[styles.helperText, { color: theme.primary }]}>
+              When did you last have contact with this person?
+            </Text>
+          </View>
+        </View>
       </ScrollView>
+      
+      <LastContactCalendarModal />
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 20,
-  },
-  saveButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  section: {
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  input: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    letterSpacing: 0,
-  },
-  textArea: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    letterSpacing: 0,
-  },
-  relationshipOptions: {
-    flexDirection: 'row',
-  },
-  relationshipOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  relationshipOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  tag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  tagText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginRight: 6,
-  },
-  addTagContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tagInput: {
-    flex: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    borderWidth: 1,
-    marginRight: 8,
-    letterSpacing: 0,
-  },
-  colorButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  addTagButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorPicker: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 12,
-  },
-  colorOption: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  photoContainer: {
-    alignItems: 'center',
-  },
-  addPhotoButton: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-  },
-  addPhotoText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 8,
-  },
-  photoPreview: {
-    position: 'relative',
-  },
-  profilePhoto: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  replacePhotoButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ageDisplay: {
-    fontSize: 14,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  toggleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  warningText: {
-    fontSize: 12,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-});
