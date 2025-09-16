@@ -68,6 +68,7 @@ export default function CreateProfile() {
     facebook: '',
     birthday: '',
     lastContactDate: null,
+    lastContactDate: new Date().toISOString(),
     // Text fields for editing
     parentsText: '',
     kidsText: '',
