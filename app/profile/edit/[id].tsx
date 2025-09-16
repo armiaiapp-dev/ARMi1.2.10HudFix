@@ -18,7 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Save, Plus, X, User, Palette, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Heart, Briefcase, House } from 'lucide-react-native';
 import { Camera } from 'lucide-react-native';
-import { DatabaseService } from '../../services/DatabaseService';
+import { DatabaseService } from '@/services/DatabaseService';
 import { scheduleBirthdayText, scheduleReminder, cancelById } from '@/services/Scheduler';
 import { useTheme } from '@/context/ThemeContext';
 
