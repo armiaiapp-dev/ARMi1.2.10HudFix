@@ -31,8 +31,11 @@ class DatabaseServiceClass {
       console.log('Opening database...');
       this.db = await SQLite.openDatabaseAsync('armi.db');
       console.log('Database opened, creating tables...');
+      // Create tables FIRST, then run migrations
       await this.createTables();
-      console.log('Tables created successfully');
+      console.log('Tables created successfully, running migrations...');
+      await this.migrateDatabase();
+      console.log('Migrations completed successfully');
     } catch (error) {
       console.error('Database initialization error:', error);
       if (error instanceof Error && error.message.includes('unable to open database file')) {
@@ -62,9 +65,6 @@ class DatabaseServiceClass {
     if (!this.db) return;
 
     try {
-      // Check if we need to migrate the database schema
-      await this.migrateDatabase();
-
       // Profiles table
       await this.db.execAsync(`
         CREATE TABLE IF NOT EXISTS profiles (
@@ -83,7 +83,6 @@ class DatabaseServiceClass {
           brothers TEXT,
           sisters TEXT,
           siblings TEXT,
-          pets TEXT,
           pets TEXT,
           foodLikes TEXT,
           foodDislikes TEXT,
