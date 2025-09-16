@@ -1013,7 +1013,7 @@ export default function CreateProfile() {
         <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Last Contact</Text>
           <Text style={[styles.helperText, { color: theme.primary }]}>
-            Last contact date is automatically set to today when you create a profile
+            Last contact date is automatically set to today when you create a profile. To change this, please save the profile and edit the Last Contact Date.
           </Text>
         </View>
       </ScrollView>
